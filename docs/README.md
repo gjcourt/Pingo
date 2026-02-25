@@ -37,7 +37,7 @@ Pingo is configured entirely through environment variables.
 
 | Variable | Description | Required | Default |
 |---|---|---|---|
-| `CF_API_TOKEN` | Your Cloudflare API Token with `Zone:DNS:Edit` permissions. | Yes | None |
+| `CLOUDFLARE_API_TOKEN` | Your Cloudflare API Token with `Zone:DNS:Edit` permissions. | Yes | None |
 | `DOMAINS` | A comma-separated list of domains to update (e.g., `example.com,sub.example.com`). | Yes | None |
 | `PROXIED` | Whether the DNS records should be proxied through Cloudflare (orange cloud). Set to `true` or `1` to enable. | No | `false` |
 
@@ -46,7 +46,7 @@ Pingo is configured entirely through environment variables.
 Once configured, you can run Pingo directly:
 
 ```bash
-export CF_API_TOKEN="your-api-token"
+export CLOUDFLARE_API_TOKEN="your-api-token"
 export DOMAINS="example.com,sub.example.com"
 export PROXIED="true"
 
@@ -65,7 +65,7 @@ Pingo is designed to be run periodically. You can set it up as a cron job to kee
 Example crontab entry (runs every 5 minutes):
 
 ```cron
-*/5 * * * * CF_API_TOKEN="your-api-token" DOMAINS="example.com" PROXIED="true" /path/to/pingo/bin/pingo >> /var/log/pingo.log 2>&1
+*/5 * * * * CLOUDFLARE_API_TOKEN="your-api-token" DOMAINS="example.com" PROXIED="true" /path/to/pingo/bin/pingo >> /var/log/pingo.log 2>&1
 ```
 
 ## Architecture

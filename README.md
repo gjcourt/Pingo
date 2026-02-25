@@ -20,7 +20,7 @@ See the [Documentation](docs/README.md) for detailed instructions on how to inst
 2. Run the application:
 
 ```bash
-export CF_API_TOKEN="your-api-token"
+export CLOUDFLARE_API_TOKEN="your-api-token"
 export DOMAINS="example.com,sub.example.com"
 export PROXIED="true" # Optional, defaults to false
 

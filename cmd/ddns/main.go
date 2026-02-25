@@ -17,9 +17,9 @@ func main() {
 	log.Println("Starting Cloudflare DDNS Updater...")
 
 	// 1. Load Configuration from Environment Variables
-	apiToken := os.Getenv("CF_API_TOKEN")
+	apiToken := os.Getenv("CLOUDFLARE_API_TOKEN")
 	if apiToken == "" {
-		log.Fatal("CF_API_TOKEN environment variable is required")
+		log.Fatal("CLOUDFLARE_API_TOKEN environment variable is required")
 	}
 
 	domainsEnv := os.Getenv("DOMAINS")
@@ -32,7 +32,7 @@ func main() {
 
 	// Parse domains
 	domainNames := strings.Split(domainsEnv, ",")
-	var configs []domain.DomainConfig
+	configs := make([]domain.DomainConfig, 0, len(domainNames))
 	for _, name := range domainNames {
 		name = strings.TrimSpace(name)
 		if name == "" {
