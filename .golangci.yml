@@ -1,0 +1,49 @@
+version: 2
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+  gosec:
+    excludes:
+      - G104 # Duplicated by errcheck
+  govet:
+    enable:
+      - shadow
+  revive:
+    rules:
+      - name: exported
+        arguments:
+          - disableStutteringCheck
+
+linters:
+  disable-all: true
+  enable:
+    - govet
+    - ineffassign
+    - unused
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - contextcheck
+    - durationcheck
+    - errorlint
+    - gosec
+    - misspell
+    - nilerr
+    - noctx
+    - prealloc
+    - unconvert
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
