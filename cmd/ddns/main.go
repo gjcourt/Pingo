@@ -32,7 +32,7 @@ func main() {
 
 	// Parse domains
 	domainNames := strings.Split(domainsEnv, ",")
-	var configs []domain.DomainConfig
+	configs := make([]domain.DomainConfig, 0, len(domainNames))
 	for _, name := range domainNames {
 		name = strings.TrimSpace(name)
 		if name == "" {

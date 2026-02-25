@@ -53,7 +53,7 @@ func (a *adapter) GetRecords(ctx context.Context, domainName string, recordType 
 		return nil, fmt.Errorf("failed to list dns records: %w", err)
 	}
 
-	var result []domain.DNSRecord
+	result := make([]domain.DNSRecord, 0, len(records))
 	for _, r := range records {
 		proxied := false
 		if r.Proxied != nil {
