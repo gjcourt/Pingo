@@ -1,28 +1,7 @@
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-  gosec:
-    excludes:
-      - G104 # Duplicated by errcheck
-  govet:
-    enable:
-      - shadow
-  revive:
-    rules:
-      - name: exported
-        arguments:
-          - disableStutteringCheck
+version: "2"
 
 linters:
-  disable-all: true
+  default: none
   enable:
     - govet
     - ineffassign
@@ -40,6 +19,66 @@ linters:
     - noctx
     - prealloc
     - unconvert
+    - depguard
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+    gosec:
+      excludes:
+        - G104 # Duplicated by errcheck
+    govet:
+      enable:
+        - shadow
+    revive:
+      rules:
+        - name: exported
+          arguments:
+            - disableStutteringCheck
+    depguard:
+      rules:
+        core-domain-no-other-internal:
+          files:
+            - "**/internal/core/domain/**/*.go"
+          deny:
+            - pkg: "github.com/george/pingo/internal/core/ports"
+              desc: "domain must not import ports"
+            - pkg: "github.com/george/pingo/internal/core/services"
+              desc: "domain must not import services"
+            - pkg: "github.com/george/pingo/internal/adapters"
+              desc: "domain must not import adapters"
+
+        core-ports-no-impl:
+          files:
+            - "**/internal/core/ports/**/*.go"
+          deny:
+            - pkg: "github.com/george/pingo/internal/core/services"
+              desc: "ports must not import services (ports are abstract contracts)"
+            - pkg: "github.com/george/pingo/internal/adapters"
+              desc: "ports must not import adapters"
+
+        core-services-no-adapters:
+          files:
+            - "**/internal/core/services/**/*.go"
+          deny:
+            - pkg: "github.com/george/pingo/internal/adapters"
+              desc: "service layer must depend only on port interfaces, not adapter implementations"
+
+        adapters-no-cross-import:
+          files:
+            - "**/internal/adapters/**/*.go"
+          deny:
+            - pkg: "github.com/george/pingo/internal/adapters/driven/cloudflare"
+              desc: "adapters must not import sibling adapters"
+            - pkg: "github.com/george/pingo/internal/adapters/driven/ipfetcher"
+              desc: "adapters must not import sibling adapters"
 
 issues:
   exclude-use-default: false
