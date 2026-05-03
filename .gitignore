@@ -1,0 +1,19 @@
+# Build artifacts
+bin/
+ddns
+
+# Test artifacts
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Worktrees (per-session checkouts)
+.worktrees/
