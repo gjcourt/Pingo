@@ -6,13 +6,15 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/george/pingo/internal/ports/outbound"
 )
 
 const (
-	traceURLv4 = "https://1.1.1.1/cdn-cgi/trace"
-	traceURLv6 = "https://[2606:4700:4700::1111]/cdn-cgi/trace"
+	traceURLv4        = "https://1.1.1.1/cdn-cgi/trace"
+	traceURLv6        = "https://[2606:4700:4700::1111]/cdn-cgi/trace"
+	defaultHTTPBudget = 5 * time.Second
 )
 
 type cloudflareTraceFetcher struct {
@@ -24,7 +26,7 @@ type cloudflareTraceFetcher struct {
 // NewCloudflareTraceFetcher creates a new IPFetcher using Cloudflare's trace endpoint.
 func NewCloudflareTraceFetcher() outbound.IPFetcher {
 	return &cloudflareTraceFetcher{
-		client: &http.Client{},
+		client: &http.Client{Timeout: defaultHTTPBudget},
 		urlV4:  traceURLv4,
 		urlV6:  traceURLv6,
 	}

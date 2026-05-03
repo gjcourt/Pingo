@@ -23,15 +23,28 @@ func NewAdapter(apiToken string) (outbound.DNSProvider, error) {
 	return &adapter{api: api}, nil
 }
 
-// getZoneID finds the Zone ID for a given domain name.
+// getZoneID finds the Zone ID for a given domain name. It walks the labels
+// from most-specific to least-specific (e.g. a.b.example.com → b.example.com
+// → example.com) and returns the first matching zone. The context propagates
+// to all underlying HTTP calls so cancellation/deadlines are honoured.
 func (a *adapter) getZoneID(ctx context.Context, domainName string) (string, error) {
 	parts := strings.Split(domainName, ".")
+	var lastErr error
 	for i := 0; i < len(parts)-1; i++ {
 		zoneName := strings.Join(parts[i:], ".")
-		id, err := a.api.ZoneIDByName(zoneName)
-		if err == nil && id != "" {
-			return id, nil
+		res, err := a.api.ListZonesContext(ctx, cf.WithZoneFilters(zoneName, "", ""))
+		if err != nil {
+			lastErr = err
+			continue
 		}
+		for _, z := range res.Result {
+			if z.Name == zoneName && z.ID != "" {
+				return z.ID, nil
+			}
+		}
+	}
+	if lastErr != nil {
+		return "", fmt.Errorf("could not find zone for domain %s: %w", domainName, lastErr)
 	}
 	return "", fmt.Errorf("could not find zone for domain: %s", domainName)
 }
