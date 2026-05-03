@@ -1,6 +1,6 @@
 # Build artifacts
 bin/
-ddns
+/ddns
 
 # Test artifacts
 *.test

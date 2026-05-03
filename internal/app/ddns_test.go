@@ -64,7 +64,7 @@ func TestDDNSService_UpdateDomains(t *testing.T) {
 	t.Run("Create missing record", func(t *testing.T) {
 		ipFetcher := &MockIPFetcher{IPv4: "1.2.3.4"}
 		dnsProvider := &MockDNSProvider{Records: []domain.DNSRecord{}}
-		service := app.NewDDNSService(ipFetcher, dnsProvider)
+		service := app.NewDDNSService(ipFetcher, dnsProvider, nil)
 
 		configs := []domain.DomainConfig{
 			{Name: "example.com", IPType: domain.IPv4, Proxied: true},
@@ -90,7 +90,7 @@ func TestDDNSService_UpdateDomains(t *testing.T) {
 				{ID: "123", Name: "example.com", Type: "A", Content: "old.ip", Proxied: true},
 			},
 		}
-		service := app.NewDDNSService(ipFetcher, dnsProvider)
+		service := app.NewDDNSService(ipFetcher, dnsProvider, nil)
 
 		configs := []domain.DomainConfig{
 			{Name: "example.com", IPType: domain.IPv4, Proxied: true},
@@ -116,7 +116,7 @@ func TestDDNSService_UpdateDomains(t *testing.T) {
 				{ID: "123", Name: "example.com", Type: "A", Content: "1.2.3.4", Proxied: true},
 			},
 		}
-		service := app.NewDDNSService(ipFetcher, dnsProvider)
+		service := app.NewDDNSService(ipFetcher, dnsProvider, nil)
 
 		configs := []domain.DomainConfig{
 			{Name: "example.com", IPType: domain.IPv4, Proxied: true},
@@ -135,7 +135,7 @@ func TestDDNSService_UpdateDomains(t *testing.T) {
 	t.Run("Fails if both IPs fail", func(t *testing.T) {
 		ipFetcher := &MockIPFetcher{GetIPv4Err: errors.New("fail"), GetIPv6Err: errors.New("fail")}
 		dnsProvider := &MockDNSProvider{}
-		service := app.NewDDNSService(ipFetcher, dnsProvider)
+		service := app.NewDDNSService(ipFetcher, dnsProvider, nil)
 
 		configs := []domain.DomainConfig{
 			{Name: "example.com", IPType: domain.IPv4, Proxied: true},

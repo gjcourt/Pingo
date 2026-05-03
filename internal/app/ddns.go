@@ -2,8 +2,9 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/george/pingo/internal/domain"
 	"github.com/george/pingo/internal/ports/inbound"
@@ -13,13 +14,18 @@ import (
 type ddnsService struct {
 	ipFetcher   outbound.IPFetcher
 	dnsProvider outbound.DNSProvider
+	logger      *slog.Logger
 }
 
-// NewDDNSService creates a new DDNSService.
-func NewDDNSService(ipFetcher outbound.IPFetcher, dnsProvider outbound.DNSProvider) inbound.DDNSService {
+// NewDDNSService creates a new DDNSService. If logger is nil, slog.Default() is used.
+func NewDDNSService(ipFetcher outbound.IPFetcher, dnsProvider outbound.DNSProvider, logger *slog.Logger) inbound.DDNSService {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &ddnsService{
 		ipFetcher:   ipFetcher,
 		dnsProvider: dnsProvider,
+		logger:      logger,
 	}
 }
 
@@ -27,23 +33,24 @@ func (s *ddnsService) UpdateDomains(ctx context.Context, configs []domain.Domain
 	// 1. Fetch current public IPs
 	ipv4, err4 := s.ipFetcher.GetIPv4(ctx)
 	if err4 != nil {
-		log.Printf("Warning: Failed to fetch IPv4: %v", err4)
+		s.logger.WarnContext(ctx, "failed to fetch IPv4", "err", err4)
 	} else {
-		log.Printf("Current IPv4: %s", ipv4)
+		s.logger.InfoContext(ctx, "fetched current IPv4", "ip", ipv4)
 	}
 
 	ipv6, err6 := s.ipFetcher.GetIPv6(ctx)
 	if err6 != nil {
-		log.Printf("Warning: Failed to fetch IPv6: %v", err6)
+		s.logger.WarnContext(ctx, "failed to fetch IPv6", "err", err6)
 	} else {
-		log.Printf("Current IPv6: %s", ipv6)
+		s.logger.InfoContext(ctx, "fetched current IPv6", "ip", ipv6)
 	}
 
 	if ipv4 == "" && ipv6 == "" {
-		return fmt.Errorf("failed to fetch both IPv4 and IPv6 addresses")
+		return errors.New("failed to fetch both IPv4 and IPv6 addresses")
 	}
 
-	// 2. Process each domain configuration
+	// 2. Process each domain configuration; aggregate per-domain failures.
+	var errs []error
 	for _, config := range configs {
 		var currentIP string
 		switch config.IPType {
@@ -54,17 +61,19 @@ func (s *ddnsService) UpdateDomains(ctx context.Context, configs []domain.Domain
 		}
 
 		if currentIP == "" {
-			log.Printf("Skipping %s (%s) because IP address is not available", config.Name, config.IPType)
+			s.logger.InfoContext(ctx, "skipping domain because IP is unavailable",
+				"domain", config.Name, "ip_type", string(config.IPType))
 			continue
 		}
 
-		err := s.processDomain(ctx, config, currentIP)
-		if err != nil {
-			log.Printf("Error processing domain %s: %v", config.Name, err)
+		if err := s.processDomain(ctx, config, currentIP); err != nil {
+			s.logger.ErrorContext(ctx, "failed to process domain",
+				"domain", config.Name, "ip_type", string(config.IPType), "err", err)
+			errs = append(errs, fmt.Errorf("%s (%s): %w", config.Name, config.IPType, err))
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 func (s *ddnsService) processDomain(ctx context.Context, config domain.DomainConfig, currentIP string) error {
@@ -76,21 +85,25 @@ func (s *ddnsService) processDomain(ctx context.Context, config domain.DomainCon
 	}
 
 	if len(records) == 0 {
-		log.Printf("Creating %s record for %s -> %s (Proxied: %t)", recordType, config.Name, currentIP, config.Proxied)
+		s.logger.InfoContext(ctx, "creating DNS record",
+			"domain", config.Name, "type", recordType, "content", currentIP, "proxied", config.Proxied)
 		return s.dnsProvider.CreateRecord(ctx, config.Name, recordType, currentIP, config.Proxied)
 	}
 
 	record := records[0]
 
 	if len(records) > 1 {
-		log.Printf("Warning: Found multiple %s records for %s. Updating the first one (%s).", recordType, config.Name, record.ID)
+		s.logger.WarnContext(ctx, "multiple matching records found; updating only the first",
+			"domain", config.Name, "type", recordType, "id", record.ID, "count", len(records))
 	}
 
 	if record.Content == currentIP && record.Proxied == config.Proxied {
-		log.Printf("No update needed for %s (%s). Current IP: %s, Proxied: %t", config.Name, recordType, currentIP, config.Proxied)
+		s.logger.InfoContext(ctx, "record already up to date",
+			"domain", config.Name, "type", recordType, "content", currentIP, "proxied", config.Proxied)
 		return nil
 	}
 
-	log.Printf("Updating %s record for %s -> %s (Proxied: %t)", recordType, config.Name, currentIP, config.Proxied)
+	s.logger.InfoContext(ctx, "updating DNS record",
+		"domain", config.Name, "type", recordType, "content", currentIP, "proxied", config.Proxied, "id", record.ID)
 	return s.dnsProvider.UpdateRecord(ctx, record.ID, config.Name, recordType, currentIP, config.Proxied)
 }
