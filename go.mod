@@ -3,7 +3,7 @@ module github.com/george/pingo
 go 1.24.0
 
 require (
-	github.com/cloudflare/cloudflare-go v0.116.0
+	github.com/cloudflare/cloudflare-go/v6 v6.10.0
 	github.com/cloudflare/cloudflare-go/v6 v6.10.0
 )
 
