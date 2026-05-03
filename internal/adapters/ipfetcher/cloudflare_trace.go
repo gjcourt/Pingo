@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/george/pingo/internal/core/ports"
+	"github.com/george/pingo/internal/ports/outbound"
 )
 
 const (
@@ -22,7 +22,7 @@ type cloudflareTraceFetcher struct {
 }
 
 // NewCloudflareTraceFetcher creates a new IPFetcher using Cloudflare's trace endpoint.
-func NewCloudflareTraceFetcher() ports.IPFetcher {
+func NewCloudflareTraceFetcher() outbound.IPFetcher {
 	return &cloudflareTraceFetcher{
 		client: &http.Client{},
 		urlV4:  traceURLv4,
@@ -31,7 +31,7 @@ func NewCloudflareTraceFetcher() ports.IPFetcher {
 }
 
 // NewCloudflareTraceFetcherWithClient creates a new IPFetcher with a custom HTTP client and URLs (useful for testing).
-func NewCloudflareTraceFetcherWithClient(client *http.Client, urlV4, urlV6 string) ports.IPFetcher {
+func NewCloudflareTraceFetcherWithClient(client *http.Client, urlV4, urlV6 string) outbound.IPFetcher {
 	return &cloudflareTraceFetcher{
 		client: client,
 		urlV4:  urlV4,

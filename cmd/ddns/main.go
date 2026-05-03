@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/george/pingo/internal/adapters/driven/cloudflare"
-	"github.com/george/pingo/internal/adapters/driven/ipfetcher"
-	"github.com/george/pingo/internal/core/domain"
-	"github.com/george/pingo/internal/core/services"
+	"github.com/george/pingo/internal/adapters/cloudflare"
+	"github.com/george/pingo/internal/adapters/ipfetcher"
+	"github.com/george/pingo/internal/app"
+	"github.com/george/pingo/internal/domain"
 )
 
 func main() {
@@ -65,7 +65,7 @@ func main() {
 	ipFetcherAdapter := ipfetcher.NewCloudflareTraceFetcher()
 
 	// 3. Initialize Application Service
-	ddnsService := services.NewDDNSService(ipFetcherAdapter, cfAdapter)
+	ddnsService := app.NewDDNSService(ipFetcherAdapter, cfAdapter)
 
 	// 4. Execute the update
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

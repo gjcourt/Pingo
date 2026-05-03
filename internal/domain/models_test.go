@@ -3,7 +3,7 @@ package domain_test
 import (
 	"testing"
 
-	"github.com/george/pingo/internal/core/domain"
+	"github.com/george/pingo/internal/domain"
 )
 
 func TestIPVersion_RecordType(t *testing.T) {

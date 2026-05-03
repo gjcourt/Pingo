@@ -14,38 +14,41 @@
 | `make image` | Build and push the container image |
 | `make list-images` | List published image tags |
 
-Single test: `go test ./internal/core/services -run TestX -v`
+Single test: `go test ./internal/app -run TestX -v`
 Pre-push: `make all`
 
 ## Architecture
 
 Hexagonal architecture (ports & adapters). Entry point: `cmd/ddns/main.go`.
 
-- `internal/core/domain/` — entity types (`IPVersion`, `DomainConfig`, `DNSRecord`). No external deps.
-- `internal/core/ports/` — interfaces (`IPFetcher`, `DNSProvider`, `DDNSService`).
-- `internal/core/services/` — application orchestration (`ddnsService`).
-- `internal/adapters/driven/<vendor>/` — outbound adapters (Cloudflare API client, HTTP IP fetcher).
+- `internal/domain/` — entity types (`IPVersion`, `DomainConfig`, `DNSRecord`). No external deps.
+- `internal/ports/inbound/` — driving-port interfaces (`DDNSService`).
+- `internal/ports/outbound/` — driven-port interfaces (`IPFetcher`, `DNSProvider`).
+- `internal/app/` — application orchestration (`ddnsService` implements `DDNSService`).
+- `internal/adapters/cloudflare/` — Cloudflare API DNS provider.
+- `internal/adapters/ipfetcher/` — HTTP-based public IP fetcher.
 
 See `docs/architecture/` for the full guide.
 
 ## Conventions
 
-- **Core domain has no external deps** — keep `internal/core/` free of third-party libs.
-- **Cloudflare SDK only in adapters** — never import `github.com/cloudflare/cloudflare-go` from `core/`.
-- **New IP-detection strategies or DNS providers** implement the relevant port interface — no direct calls in `services/`.
+- **Domain has no external deps** — keep `internal/domain/` free of third-party libs.
+- **Cloudflare SDK only in adapters** — never import `github.com/cloudflare/cloudflare-go` from `domain/`, `ports/`, or `app/`.
+- **New IP-detection strategies or DNS providers** implement the relevant outbound port interface — no direct calls in `app/`.
 - **Conventional Commits** for every commit (`feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`, `ci:`).
 - **Branch names** follow `<type>/<description>`.
 
 ## Invariants
 
-- `internal/core/` must not import from `internal/adapters/`.
-- `internal/core/` must not import any third-party packages outside stdlib.
-- Cloudflare SDK types appear only in `internal/adapters/`, never in `core/`.
+- `internal/domain/` must not import from `internal/ports/`, `internal/app/`, or `internal/adapters/`.
+- `internal/ports/` must not import from `internal/app/` or `internal/adapters/`.
+- `internal/app/` must not import from `internal/adapters/` — it depends on port interfaces only.
+- Cloudflare SDK types appear only in `internal/adapters/`, never elsewhere.
 - The compiled binary lives at `bin/pingo`; never committed.
 
 ## What NOT to Do
 
-- Do not add Cloudflare SDK types to `services/` or `domain/` — adapters translate, core stays pure.
+- Do not add Cloudflare SDK types to `app/`, `ports/`, or `domain/` — adapters translate, inner layers stay pure.
 - Do not skip the pre-push checks; `make all` must be green before opening a PR.
 - Do not commit `bin/` artifacts or local credentials.
 
@@ -57,8 +60,8 @@ A scheduled run fetches the host's public IPv4/IPv6 from Cloudflare's trace endp
 
 | Service | Interface | Purpose |
 |---------|-----------|---------|
-| Cloudflare API | `core/ports.DNSProvider` | DNS record CRUD |
-| Cloudflare trace endpoint | `core/ports.IPFetcher` | Public IP discovery |
+| Cloudflare API | `ports/outbound.DNSProvider` | DNS record CRUD |
+| Cloudflare trace endpoint | `ports/outbound.IPFetcher` | Public IP discovery |
 
 Deployed in the homelab cluster as a CronJob (`../homelab/infra/controllers/pingo/`); image-tag bumps must be coordinated with that deployment.
 

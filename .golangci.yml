@@ -44,40 +44,40 @@ linters:
             - disableStutteringCheck
     depguard:
       rules:
-        core-domain-no-other-internal:
+        domain-no-other-internal:
           files:
-            - "**/internal/core/domain/**/*.go"
+            - "**/internal/domain/**/*.go"
           deny:
-            - pkg: "github.com/george/pingo/internal/core/ports"
+            - pkg: "github.com/george/pingo/internal/ports"
               desc: "domain must not import ports"
-            - pkg: "github.com/george/pingo/internal/core/services"
-              desc: "domain must not import services"
+            - pkg: "github.com/george/pingo/internal/app"
+              desc: "domain must not import app"
             - pkg: "github.com/george/pingo/internal/adapters"
               desc: "domain must not import adapters"
 
-        core-ports-no-impl:
+        ports-no-impl:
           files:
-            - "**/internal/core/ports/**/*.go"
+            - "**/internal/ports/**/*.go"
           deny:
-            - pkg: "github.com/george/pingo/internal/core/services"
-              desc: "ports must not import services (ports are abstract contracts)"
+            - pkg: "github.com/george/pingo/internal/app"
+              desc: "ports must not import app (ports are abstract contracts)"
             - pkg: "github.com/george/pingo/internal/adapters"
               desc: "ports must not import adapters"
 
-        core-services-no-adapters:
+        app-no-adapters:
           files:
-            - "**/internal/core/services/**/*.go"
+            - "**/internal/app/**/*.go"
           deny:
             - pkg: "github.com/george/pingo/internal/adapters"
-              desc: "service layer must depend only on port interfaces, not adapter implementations"
+              desc: "app layer must depend only on port interfaces, not adapter implementations"
 
         adapters-no-cross-import:
           files:
             - "**/internal/adapters/**/*.go"
           deny:
-            - pkg: "github.com/george/pingo/internal/adapters/driven/cloudflare"
+            - pkg: "github.com/george/pingo/internal/adapters/cloudflare"
               desc: "adapters must not import sibling adapters"
-            - pkg: "github.com/george/pingo/internal/adapters/driven/ipfetcher"
+            - pkg: "github.com/george/pingo/internal/adapters/ipfetcher"
               desc: "adapters must not import sibling adapters"
 
 issues:

@@ -1,21 +1,22 @@
-package services
+package app
 
 import (
 	"context"
 	"fmt"
 	"log"
 
-	"github.com/george/pingo/internal/core/domain"
-	"github.com/george/pingo/internal/core/ports"
+	"github.com/george/pingo/internal/domain"
+	"github.com/george/pingo/internal/ports/inbound"
+	"github.com/george/pingo/internal/ports/outbound"
 )
 
 type ddnsService struct {
-	ipFetcher   ports.IPFetcher
-	dnsProvider ports.DNSProvider
+	ipFetcher   outbound.IPFetcher
+	dnsProvider outbound.DNSProvider
 }
 
 // NewDDNSService creates a new DDNSService.
-func NewDDNSService(ipFetcher ports.IPFetcher, dnsProvider ports.DNSProvider) ports.DDNSService {
+func NewDDNSService(ipFetcher outbound.IPFetcher, dnsProvider outbound.DNSProvider) inbound.DDNSService {
 	return &ddnsService{
 		ipFetcher:   ipFetcher,
 		dnsProvider: dnsProvider,
@@ -60,7 +61,6 @@ func (s *ddnsService) UpdateDomains(ctx context.Context, configs []domain.Domain
 		err := s.processDomain(ctx, config, currentIP)
 		if err != nil {
 			log.Printf("Error processing domain %s: %v", config.Name, err)
-			// Continue processing other domains even if one fails
 		}
 	}
 
@@ -70,22 +70,16 @@ func (s *ddnsService) UpdateDomains(ctx context.Context, configs []domain.Domain
 func (s *ddnsService) processDomain(ctx context.Context, config domain.DomainConfig, currentIP string) error {
 	recordType := config.IPType.RecordType()
 
-	// Fetch existing records
 	records, err := s.dnsProvider.GetRecords(ctx, config.Name, recordType)
 	if err != nil {
 		return fmt.Errorf("failed to get records: %w", err)
 	}
 
 	if len(records) == 0 {
-		// Create missing record
 		log.Printf("Creating %s record for %s -> %s (Proxied: %t)", recordType, config.Name, currentIP, config.Proxied)
 		return s.dnsProvider.CreateRecord(ctx, config.Name, recordType, currentIP, config.Proxied)
 	}
 
-	// Update existing record(s)
-	// In a typical DDNS scenario, there should only be one record of a specific type for a domain.
-	// If there are multiple, we update the first one and might want to log a warning or delete others.
-	// For simplicity, we'll just update the first one if it differs.
 	record := records[0]
 
 	if len(records) > 1 {

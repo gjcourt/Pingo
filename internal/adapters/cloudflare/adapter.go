@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	cf "github.com/cloudflare/cloudflare-go"
-	"github.com/george/pingo/internal/core/domain"
-	"github.com/george/pingo/internal/core/ports"
+	"github.com/george/pingo/internal/domain"
+	"github.com/george/pingo/internal/ports/outbound"
 )
 
 type adapter struct {
@@ -15,7 +15,7 @@ type adapter struct {
 }
 
 // NewAdapter creates a new Cloudflare DNS provider adapter.
-func NewAdapter(apiToken string) (ports.DNSProvider, error) {
+func NewAdapter(apiToken string) (outbound.DNSProvider, error) {
 	api, err := cf.NewWithAPIToken(apiToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize cloudflare api: %w", err)

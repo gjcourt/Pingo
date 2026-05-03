@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/george/pingo/internal/adapters/driven/ipfetcher"
+	"github.com/george/pingo/internal/adapters/ipfetcher"
 )
 
 func TestCloudflareTraceFetcher_GetIPv4(t *testing.T) {
