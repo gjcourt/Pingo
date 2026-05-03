@@ -11,18 +11,18 @@ import (
 
 // MockIPFetcher is a mock implementation of ports.IPFetcher
 type MockIPFetcher struct {
-	IPv4 string
-	Err4 error
-	IPv6 string
-	Err6 error
+	IPv4        string
+	GetIPv4Err  error
+	IPv6        string
+	GetIPv6Err  error
 }
 
 func (m *MockIPFetcher) GetIPv4(ctx context.Context) (string, error) {
-	return m.IPv4, m.Err4
+	return m.IPv4, m.GetIPv4Err
 }
 
 func (m *MockIPFetcher) GetIPv6(ctx context.Context) (string, error) {
-	return m.IPv6, m.Err6
+	return m.IPv6, m.GetIPv6Err
 }
 
 // MockDNSProvider is a mock implementation of ports.DNSProvider
@@ -133,7 +133,7 @@ func TestDDNSService_UpdateDomains(t *testing.T) {
 	})
 
 	t.Run("Fails if both IPs fail", func(t *testing.T) {
-		ipFetcher := &MockIPFetcher{Err4: errors.New("fail"), Err6: errors.New("fail")}
+		ipFetcher := &MockIPFetcher{GetIPv4Err: errors.New("fail"), GetIPv6Err: errors.New("fail")}
 		dnsProvider := &MockDNSProvider{}
 		service := services.NewDDNSService(ipFetcher, dnsProvider)
 
