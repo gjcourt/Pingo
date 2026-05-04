@@ -74,6 +74,7 @@ linters:
         adapters-no-cross-import:
           files:
             - "**/internal/adapters/**/*.go"
+            - "!**/*_test.go"
           deny:
             - pkg: "github.com/george/pingo/internal/adapters/driven/cloudflare"
               desc: "adapters must not import sibling adapters"
@@ -81,6 +82,5 @@ linters:
               desc: "adapters must not import sibling adapters"
 
 issues:
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
