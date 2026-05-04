@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -14,17 +14,22 @@ import (
 )
 
 func main() {
-	log.Println("Starting Cloudflare DDNS Updater...")
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	slog.SetDefault(logger)
+
+	logger.Info("starting Cloudflare DDNS updater")
 
 	// 1. Load Configuration from Environment Variables
 	apiToken := os.Getenv("CLOUDFLARE_API_TOKEN")
 	if apiToken == "" {
-		log.Fatal("CLOUDFLARE_API_TOKEN environment variable is required")
+		logger.Error("CLOUDFLARE_API_TOKEN environment variable is required")
+		os.Exit(1)
 	}
 
 	domainsEnv := os.Getenv("DOMAINS")
 	if domainsEnv == "" {
-		log.Fatal("DOMAINS environment variable is required (comma-separated list of domains)")
+		logger.Error("DOMAINS environment variable is required (comma-separated list of domains)")
+		os.Exit(1)
 	}
 
 	proxiedEnv := os.Getenv("PROXIED")
@@ -53,28 +58,30 @@ func main() {
 	}
 
 	if len(configs) == 0 {
-		log.Fatal("No valid domains configured")
+		logger.Error("no valid domains configured")
+		os.Exit(1)
 	}
 
 	// 2. Initialize Adapters (Driven Ports)
 	cfAdapter, err := cloudflare.NewAdapter(apiToken)
 	if err != nil {
-		log.Fatalf("Failed to initialize Cloudflare adapter: %v", err)
+		logger.Error("failed to initialize cloudflare adapter", "err", err)
+		os.Exit(1)
 	}
 
 	ipFetcherAdapter := ipfetcher.NewCloudflareTraceFetcher()
 
 	// 3. Initialize Application Service
-	ddnsService := app.NewDDNSService(ipFetcherAdapter, cfAdapter)
+	ddnsService := app.NewDDNSService(ipFetcherAdapter, cfAdapter, logger)
 
 	// 4. Execute the update
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	err = ddnsService.UpdateDomains(ctx, configs)
-	if err != nil {
-		log.Fatalf("Failed to update domains: %v", err)
+	if err := ddnsService.UpdateDomains(ctx, configs); err != nil {
+		logger.Error("failed to update domains", "err", err)
+		os.Exit(1)
 	}
 
-	log.Println("DDNS update completed successfully.")
+	logger.Info("DDNS update completed successfully")
 }
