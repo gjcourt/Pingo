@@ -11,11 +11,16 @@
 | `make lint` | Run golangci-lint |
 | `make format` | gofmt + goimports |
 | `make all` | format + lint + test + build |
-| `make image` | Build and push the container image |
+| `make image` | Build and push the container image (manual fallback) |
 | `make list-images` | List published image tags |
 
 Single test: `go test ./internal/app -run TestX -v`
 Pre-push: `make all`
+
+**Image publishing:** `.github/workflows/image.yml` builds and pushes a multi-arch
+image to `ghcr.io/gjcourt/pingo` on every push to `main` (and via
+`workflow_dispatch`), tagged `YYYY-MM-DD` (UTC) + `YYYY-MM-DD-<sha>` + `latest`.
+`make image` remains as a manual fallback. The homelab CronJob pins the date tag.
 
 ## Architecture
 
