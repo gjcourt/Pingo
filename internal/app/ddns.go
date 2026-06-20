@@ -5,32 +5,49 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/george/pingo/internal/domain"
 	"github.com/george/pingo/internal/ports/inbound"
 	"github.com/george/pingo/internal/ports/outbound"
 )
 
-type ddnsService struct {
-	ipFetcher   outbound.IPFetcher
-	dnsProvider outbound.DNSProvider
-	logger      *slog.Logger
+// NamedProvider pairs a DNS provider with a label used in logs and error
+// messages, so failures across multiple sinks (e.g. Cloudflare vs AdGuard) are
+// distinguishable.
+type NamedProvider struct {
+	Name     string
+	Provider outbound.DNSProvider
 }
 
-// NewDDNSService creates a new DDNSService. If logger is nil, slog.Default() is used.
+type ddnsService struct {
+	ipFetcher outbound.IPFetcher
+	providers []NamedProvider
+	logger    *slog.Logger
+}
+
+// NewDDNSService creates a DDNSService that reconciles against a single DNS
+// provider. If logger is nil, slog.Default() is used.
 func NewDDNSService(ipFetcher outbound.IPFetcher, dnsProvider outbound.DNSProvider, logger *slog.Logger) inbound.DDNSService {
+	return NewDDNSServiceMulti(ipFetcher, []NamedProvider{{Name: "default", Provider: dnsProvider}}, logger)
+}
+
+// NewDDNSServiceMulti creates a DDNSService that reconciles every domain against
+// each configured provider. Providers are updated independently and in
+// parallel; one provider's failure does not block the others.
+func NewDDNSServiceMulti(ipFetcher outbound.IPFetcher, providers []NamedProvider, logger *slog.Logger) inbound.DDNSService {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &ddnsService{
-		ipFetcher:   ipFetcher,
-		dnsProvider: dnsProvider,
-		logger:      logger,
+		ipFetcher: ipFetcher,
+		providers: providers,
+		logger:    logger,
 	}
 }
 
 func (s *ddnsService) UpdateDomains(ctx context.Context, configs []domain.DomainConfig) error {
-	// 1. Fetch current public IPs
+	// 1. Fetch current public IPs once; all providers/domains share them.
 	ipv4, err4 := s.ipFetcher.GetIPv4(ctx)
 	if err4 != nil {
 		s.logger.WarnContext(ctx, "failed to fetch IPv4", "err", err4)
@@ -49,37 +66,58 @@ func (s *ddnsService) UpdateDomains(ctx context.Context, configs []domain.Domain
 		return errors.New("failed to fetch both IPv4 and IPv6 addresses")
 	}
 
-	// 2. Process each domain configuration; aggregate per-domain failures.
-	var errs []error
-	for _, config := range configs {
-		var currentIP string
-		switch config.IPType {
-		case domain.IPv4:
-			currentIP = ipv4
-		case domain.IPv6:
-			currentIP = ipv6
-		}
+	// 2. Reconcile every (provider, domain) pair concurrently. Each unit is
+	// independent — distinct provider state and/or distinct DNS records — so
+	// there is no shared mutable state on the write path beyond error
+	// collection, which is mutex-guarded.
+	var (
+		wg   sync.WaitGroup
+		mu   sync.Mutex
+		errs []error
+	)
 
-		if currentIP == "" {
-			s.logger.InfoContext(ctx, "skipping domain because IP is unavailable",
-				"domain", config.Name, "ip_type", string(config.IPType))
-			continue
-		}
+	for _, np := range s.providers {
+		for _, config := range configs {
+			currentIP := s.ipForType(config.IPType, ipv4, ipv6)
+			if currentIP == "" {
+				s.logger.InfoContext(ctx, "skipping domain because IP is unavailable",
+					"provider", np.Name, "domain", config.Name, "ip_type", string(config.IPType))
+				continue
+			}
 
-		if err := s.processDomain(ctx, config, currentIP); err != nil {
-			s.logger.ErrorContext(ctx, "failed to process domain",
-				"domain", config.Name, "ip_type", string(config.IPType), "err", err)
-			errs = append(errs, fmt.Errorf("%s (%s): %w", config.Name, config.IPType, err))
+			wg.Add(1)
+			go func(np NamedProvider, config domain.DomainConfig, currentIP string) {
+				defer wg.Done()
+				if err := s.processDomain(ctx, np.Provider, config, currentIP); err != nil {
+					s.logger.ErrorContext(ctx, "failed to process domain",
+						"provider", np.Name, "domain", config.Name, "ip_type", string(config.IPType), "err", err)
+					mu.Lock()
+					errs = append(errs, fmt.Errorf("%s/%s (%s): %w", np.Name, config.Name, config.IPType, err))
+					mu.Unlock()
+				}
+			}(np, config, currentIP)
 		}
 	}
 
+	wg.Wait()
 	return errors.Join(errs...)
 }
 
-func (s *ddnsService) processDomain(ctx context.Context, config domain.DomainConfig, currentIP string) error {
+func (s *ddnsService) ipForType(ipType domain.IPVersion, ipv4, ipv6 string) string {
+	switch ipType {
+	case domain.IPv4:
+		return ipv4
+	case domain.IPv6:
+		return ipv6
+	default:
+		return ""
+	}
+}
+
+func (s *ddnsService) processDomain(ctx context.Context, provider outbound.DNSProvider, config domain.DomainConfig, currentIP string) error {
 	recordType := config.IPType.RecordType()
 
-	records, err := s.dnsProvider.GetRecords(ctx, config.Name, recordType)
+	records, err := provider.GetRecords(ctx, config.Name, recordType)
 	if err != nil {
 		return fmt.Errorf("failed to get records: %w", err)
 	}
@@ -87,7 +125,7 @@ func (s *ddnsService) processDomain(ctx context.Context, config domain.DomainCon
 	if len(records) == 0 {
 		s.logger.InfoContext(ctx, "creating DNS record",
 			"domain", config.Name, "type", recordType, "content", currentIP, "proxied", config.Proxied)
-		return s.dnsProvider.CreateRecord(ctx, config.Name, recordType, currentIP, config.Proxied)
+		return provider.CreateRecord(ctx, config.Name, recordType, currentIP, config.Proxied)
 	}
 
 	record := records[0]
@@ -105,5 +143,5 @@ func (s *ddnsService) processDomain(ctx context.Context, config domain.DomainCon
 
 	s.logger.InfoContext(ctx, "updating DNS record",
 		"domain", config.Name, "type", recordType, "content", currentIP, "proxied", config.Proxied, "id", record.ID)
-	return s.dnsProvider.UpdateRecord(ctx, record.ID, config.Name, recordType, currentIP, config.Proxied)
+	return provider.UpdateRecord(ctx, record.ID, config.Name, recordType, currentIP, config.Proxied)
 }
