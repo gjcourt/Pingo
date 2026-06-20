@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/george/pingo/internal/adapters/adguard"
 	"github.com/george/pingo/internal/adapters/cloudflare"
 	"github.com/george/pingo/internal/adapters/ipfetcher"
 	"github.com/george/pingo/internal/app"
@@ -69,10 +70,35 @@ func main() {
 		os.Exit(1)
 	}
 
+	providers := []app.NamedProvider{{Name: "cloudflare", Provider: cfAdapter}}
+
+	// Optionally sync the same records into one or more AdGuard Home instances
+	// as DNS rewrites. This keeps a split-horizon override (e.g. a host caught
+	// by an internal *.domain wildcard) pointed at the live public IP for LAN
+	// clients. Enabled only when ADGUARD_URLS is set; comma-separated to cover
+	// an HA pair of independent AdGuard instances.
+	adguardURLs := os.Getenv("ADGUARD_URLS")
+	if adguardURLs != "" {
+		agUser := os.Getenv("ADGUARD_USERNAME")
+		agPass := os.Getenv("ADGUARD_PASSWORD")
+		for _, rawURL := range strings.Split(adguardURLs, ",") {
+			rawURL = strings.TrimSpace(rawURL)
+			if rawURL == "" {
+				continue
+			}
+			agAdapter, agErr := adguard.NewAdapter(rawURL, agUser, agPass, nil)
+			if agErr != nil {
+				logger.Error("failed to initialize adguard adapter", "url", rawURL, "err", agErr)
+				os.Exit(1)
+			}
+			providers = append(providers, app.NamedProvider{Name: "adguard(" + rawURL + ")", Provider: agAdapter})
+		}
+	}
+
 	ipFetcherAdapter := ipfetcher.NewCloudflareTraceFetcher()
 
 	// 3. Initialize Application Service
-	ddnsService := app.NewDDNSService(ipFetcherAdapter, cfAdapter, logger)
+	ddnsService := app.NewDDNSServiceMulti(ipFetcherAdapter, providers, logger)
 
 	// 4. Execute the update
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

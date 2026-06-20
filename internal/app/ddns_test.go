@@ -3,6 +3,8 @@ package app_test
 import (
 	"context"
 	"errors"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/george/pingo/internal/app"
@@ -58,6 +60,97 @@ func (m *MockDNSProvider) UpdateRecord(ctx context.Context, recordID string, dom
 		Proxied: proxied,
 	}
 	return m.UpdateErr
+}
+
+// CountingProvider is a thread-safe DNS provider double that records how many
+// create/update calls it received, for exercising the concurrent fan-out under
+// the race detector.
+type CountingProvider struct {
+	mu      sync.Mutex
+	creates int
+}
+
+func (c *CountingProvider) GetRecords(_ context.Context, _ string, _ string) ([]domain.DNSRecord, error) {
+	return nil, nil // always "missing" -> drives a CreateRecord
+}
+
+func (c *CountingProvider) CreateRecord(_ context.Context, _ string, _ string, _ string, _ bool) error {
+	c.mu.Lock()
+	c.creates++
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *CountingProvider) UpdateRecord(_ context.Context, _ string, _ string, _ string, _ string, _ bool) error {
+	return nil
+}
+
+// FailingProvider errors on every create, to exercise error aggregation.
+type FailingProvider struct{ err error }
+
+func (f *FailingProvider) GetRecords(_ context.Context, _ string, _ string) ([]domain.DNSRecord, error) {
+	return nil, nil
+}
+func (f *FailingProvider) CreateRecord(_ context.Context, _ string, _ string, _ string, _ bool) error {
+	return f.err
+}
+func (f *FailingProvider) UpdateRecord(_ context.Context, _ string, _ string, _ string, _ string, _ bool) error {
+	return f.err
+}
+
+func TestDDNSService_AggregatesPartialProviderFailures(t *testing.T) {
+	ipFetcher := &MockIPFetcher{IPv4: "1.2.3.4"}
+	ok := &CountingProvider{}
+	bad := &FailingProvider{err: errors.New("adguard down")}
+
+	service := app.NewDDNSServiceMulti(ipFetcher, []app.NamedProvider{
+		{Name: "cloudflare", Provider: ok},
+		{Name: "adguard", Provider: bad},
+	}, nil)
+
+	configs := []domain.DomainConfig{{Name: "vpn.example.com", IPType: domain.IPv4}}
+
+	err := service.UpdateDomains(context.Background(), configs)
+	if err == nil {
+		t.Fatal("expected an aggregated error from the failing provider")
+	}
+	// The healthy provider must still have been reconciled despite the other's failure.
+	if ok.creates != 1 {
+		t.Errorf("healthy provider should still be updated, got %d creates", ok.creates)
+	}
+	// The error must name the failing provider and carry its cause.
+	if !strings.Contains(err.Error(), "adguard") || !errors.Is(err, bad.err) {
+		t.Errorf("error should identify the failing provider and wrap its cause, got %v", err)
+	}
+}
+
+func TestDDNSService_FansOutToAllProviders(t *testing.T) {
+	ipFetcher := &MockIPFetcher{IPv4: "1.2.3.4"}
+	cf := &CountingProvider{}
+	ag1 := &CountingProvider{}
+	ag2 := &CountingProvider{}
+
+	service := app.NewDDNSServiceMulti(ipFetcher, []app.NamedProvider{
+		{Name: "cloudflare", Provider: cf},
+		{Name: "adguard-a", Provider: ag1},
+		{Name: "adguard-b", Provider: ag2},
+	}, nil)
+
+	configs := []domain.DomainConfig{
+		{Name: "vpn.example.com", IPType: domain.IPv4},
+		{Name: "home.example.com", IPType: domain.IPv4},
+	}
+
+	if err := service.UpdateDomains(context.Background(), configs); err != nil {
+		t.Fatalf("UpdateDomains() error = %v", err)
+	}
+
+	// Every provider should have been reconciled for every domain.
+	for name, p := range map[string]*CountingProvider{"cloudflare": cf, "adguard-a": ag1, "adguard-b": ag2} {
+		if p.creates != len(configs) {
+			t.Errorf("provider %s: got %d creates, want %d", name, p.creates, len(configs))
+		}
+	}
 }
 
 func TestDDNSService_UpdateDomains(t *testing.T) {
