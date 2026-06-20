@@ -16,6 +16,7 @@ type fakeAdGuard struct {
 	mu       sync.Mutex
 	rewrites []map[string]string
 	gotAuth  string
+	failAdd  bool // when set, /control/rewrite/add returns 500
 }
 
 func (f *fakeAdGuard) handler() http.Handler {
@@ -29,6 +30,13 @@ func (f *fakeAdGuard) handler() http.Handler {
 		_ = json.NewEncoder(w).Encode(f.rewrites)
 	})
 	mux.HandleFunc("/control/rewrite/add", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		fail := f.failAdd
+		f.mu.Unlock()
+		if fail {
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
 		var e map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&e)
 		f.mu.Lock()
@@ -102,6 +110,41 @@ func TestAdGuardAdapter_UpdateIsDeleteThenAdd(t *testing.T) {
 	got, _ := a.GetRecords(context.Background(), "vpn.example.com", "A")
 	if len(got) != 1 || got[0].Content != "2.2.2.2" {
 		t.Fatalf("expected single rewrite -> 2.2.2.2, got %+v", got)
+	}
+}
+
+func TestAdGuardAdapter_UpdateAddFailureLeavesRewriteAbsent(t *testing.T) {
+	// delete succeeds, add fails -> UpdateRecord errors and the rewrite is
+	// gone, so the next reconcile recreates it via CreateRecord.
+	fake := &fakeAdGuard{
+		rewrites: []map[string]string{{"domain": "vpn.example.com", "answer": "1.1.1.1"}},
+		failAdd:  true,
+	}
+	srv := httptest.NewServer(fake.handler())
+	defer srv.Close()
+
+	a, _ := adguard.NewAdapter(srv.URL, "", "", srv.Client())
+
+	err := a.UpdateRecord(context.Background(), "1.1.1.1", "vpn.example.com", "A", "2.2.2.2", false)
+	if err == nil {
+		t.Fatal("expected UpdateRecord to error when add fails")
+	}
+
+	got, _ := a.GetRecords(context.Background(), "vpn.example.com", "A")
+	if len(got) != 0 {
+		t.Fatalf("expected rewrite to be absent after failed re-add, got %+v", got)
+	}
+
+	// Recovery: with add working again, CreateRecord restores it.
+	fake.mu.Lock()
+	fake.failAdd = false
+	fake.mu.Unlock()
+	if err := a.CreateRecord(context.Background(), "vpn.example.com", "A", "2.2.2.2", false); err != nil {
+		t.Fatalf("CreateRecord recovery: %v", err)
+	}
+	got, _ = a.GetRecords(context.Background(), "vpn.example.com", "A")
+	if len(got) != 1 || got[0].Content != "2.2.2.2" {
+		t.Fatalf("expected recovered rewrite -> 2.2.2.2, got %+v", got)
 	}
 }
 

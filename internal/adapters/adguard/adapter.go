@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -156,7 +157,15 @@ func (a *adapter) do(ctx context.Context, method, path string, body, out any) er
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status %d from %s %s", resp.StatusCode, method, path)
+		// Capture a bounded snippet of the body — AdGuard returns a useful
+		// message on errors (e.g. a 401 on bad basic-auth credentials), which
+		// is otherwise lost.
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		body := bytes.TrimSpace(snippet)
+		if len(body) == 0 {
+			return fmt.Errorf("unexpected status %d from %s %s", resp.StatusCode, method, path)
+		}
+		return fmt.Errorf("unexpected status %d from %s %s: %s", resp.StatusCode, method, path, body)
 	}
 
 	if out != nil {
