@@ -42,6 +42,7 @@ See `docs/architecture/` for the full guide.
 - **New IP-detection strategies or DNS providers** implement the relevant outbound port interface — no direct calls in `app/`.
 - **Conventional Commits** for every commit (`feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`, `ci:`).
 - **Branch names** follow `<type>/<description>`.
+- **All changes go through a branch and pull request** — never commit directly to the default branch (`main`); it is protected.
 
 ## Invariants
 
