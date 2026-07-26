@@ -41,6 +41,14 @@ jobs:
           version: v2.9.0
           args: --timeout=5m
 
+      - name: Install go-arch-lint
+        run: go install github.com/fe3dback/go-arch-lint@v1.16.0
+
+      - name: Architecture boundary check
+        run: |
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          "$(go env GOPATH)/bin/go-arch-lint" check
+
   format:
     name: Format Check
     runs-on: ubuntu-latest

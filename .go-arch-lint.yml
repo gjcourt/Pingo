@@ -1,0 +1,83 @@
+version: 3
+
+# Enforce the hexagonal (ports & adapters) dependency rule for pingo.
+# Imports flow inward only: adapters/cmd -> app -> ports -> domain.
+# See docs/architecture/ARCHITECTURE.md for the prose statement of this rule.
+
+# Third-party / vendor packages (Cloudflare SDK, tidwall, stdlib) are always
+# allowed; this guard only polices dependencies *between* our own components.
+allow:
+  depOnAnyVendor: true
+
+components:
+  domain:
+    in: internal/domain
+  ports-inbound:
+    in: internal/ports/inbound
+  ports-outbound:
+    in: internal/ports/outbound
+  app:
+    in: internal/app
+  adapters:
+    in: internal/adapters/**
+  testdoubles:
+    in: internal/testdoubles
+  cmd:
+    in: cmd/**
+
+deps:
+  # Innermost layer: pure entities/value objects, stdlib only. The only self
+  # reference (`domain` -> `domain`) permits external `_test` packages
+  # (`package domain_test`) to import the package they exercise.
+  domain:
+    mayDependOn:
+      - domain
+
+  # Ports are contracts phrased in domain terms; they may reference the domain
+  # but nothing outward.
+  ports-inbound:
+    mayDependOn:
+      - domain
+      - ports-inbound
+  ports-outbound:
+    mayDependOn:
+      - domain
+      - ports-outbound
+
+  # Application orchestration depends on the domain and the port interfaces,
+  # never on concrete adapters.
+  app:
+    mayDependOn:
+      - domain
+      - ports-inbound
+      - ports-outbound
+      - app
+
+  # Adapters implement outbound ports; they translate between external systems
+  # and the domain. Allowed to see domain, ports and app.
+  adapters:
+    mayDependOn:
+      - domain
+      - ports-inbound
+      - ports-outbound
+      - app
+      - adapters
+
+  # Test doubles implement the outbound ports for unit tests. Not imported by
+  # production code (enforced by convention, not this guard).
+  testdoubles:
+    mayDependOn:
+      - domain
+      - ports-inbound
+      - ports-outbound
+      - app
+
+  # Composition root wires everything together, so it may depend on all layers.
+  cmd:
+    mayDependOn:
+      - domain
+      - ports-inbound
+      - ports-outbound
+      - app
+      - adapters
+      - testdoubles

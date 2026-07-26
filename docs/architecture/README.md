@@ -2,6 +2,8 @@
 
 How the system is built **today** — the current shape of the code, intended as a cold-start reference for an agent or engineer dropping into the repo.
 
+**Start here:** [`ARCHITECTURE.md`](ARCHITECTURE.md) — the current architecture guide (component diagram, end-to-end run flow, ports & adapters map, the inward dependency rule, and the go-arch-lint boundary guard).
+
 **Put here:**
 - System-overview docs that describe layers, packages, and dependency flow as they are right now.
 - Diagrams and prose that explain the present architecture and would still be true a week later.
