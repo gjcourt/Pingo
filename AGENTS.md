@@ -33,7 +33,9 @@ Hexagonal architecture (ports & adapters). Entry point: `cmd/ddns/main.go`.
 - `internal/adapters/cloudflare/` — Cloudflare API DNS provider.
 - `internal/adapters/ipfetcher/` — HTTP-based public IP fetcher.
 
-See `docs/architecture/` for the full guide.
+See `docs/architecture/ARCHITECTURE.md` for the full guide (diagram, run flow,
+ports/adapters map). The inward dependency rule is machine-enforced by
+`.go-arch-lint.yml` (run `go-arch-lint check`; also runs in CI).
 
 ## Conventions
 
