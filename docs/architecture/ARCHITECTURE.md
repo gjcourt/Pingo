@@ -195,7 +195,7 @@ The CI `lint` job runs `go-arch-lint check`; the build fails on any boundary
 violation. Run it locally with:
 
 ```
-go install github.com/fe3dback/go-arch-lint@v1.16.0
+go install github.com/fe3dback/go-arch-lint@v1.18.0
 go-arch-lint check
 ```
 
