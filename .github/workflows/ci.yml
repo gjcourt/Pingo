@@ -42,7 +42,7 @@ jobs:
           args: --timeout=5m
 
       - name: Install go-arch-lint
-        run: go install github.com/fe3dback/go-arch-lint@v1.16.0
+        run: go install github.com/fe3dback/go-arch-lint@v1.18.0
 
       - name: Architecture boundary check
         run: |
