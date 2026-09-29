@@ -64,7 +64,7 @@ for the component diagram and a step-by-step run-flow walkthrough.
 ```bash
 make format   # gofmt + goimports
 make lint     # golangci-lint
-make test     # go test -race -cover ./...
+make test     # go test -v -race -cover ./...
 make build    # -> bin/pingo
 make all      # format, lint, test, build, in order
 ```
