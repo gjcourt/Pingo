@@ -73,4 +73,4 @@ In the homelab, Pingo runs as a Kubernetes CronJob — see the
 
 ## License
 
-No licence file yet.
+[Apache-2.0](LICENSE)
