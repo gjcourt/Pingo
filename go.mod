@@ -1,8 +1,8 @@
 module github.com/george/pingo
 
-go 1.24.0
+go 1.26
 
-require github.com/cloudflare/cloudflare-go/v7 v7.13.0
+require github.com/cloudflare/cloudflare-go/v7 v7.13.1
 
 require (
 	github.com/tidwall/gjson v1.14.4 // indirect
